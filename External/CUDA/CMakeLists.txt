@@ -1,5 +1,7 @@
+message(STATUS "Enter CUDA/CMakeLists.txt")
 include(External)
-llvm_externals_find(TEST_SUITE_CUDA_ROOT "cuda" "CUDA prerequisites")
+#llvm_externals_find(TEST_SUITE_CUDA_ROOT "cuda" "CUDA prerequisites")
+set(TEST_SUITE_HIP_ROOT "/usr/local/hip")
 
 set(SUPPORTED_GPU_CUDA_7_0
   sm_20 sm_21
@@ -13,7 +15,7 @@ set(SUPPORTED_GPU_CUDA_8_0
   sm_20 sm_21
   sm_30 sm_32 sm_35 sm_37
   sm_50 sm_52 sm_53
-  sm_60 sm_61 sm_62)
+  sm_60 sm_61 sm_62 gfx803)
 set(SUPPORTED_GPU_CUDA_9_0
   sm_30 sm_32 sm_35 sm_37
   sm_50 sm_52 sm_53
@@ -157,6 +159,12 @@ function(create_cuda_test_variant Std VariantSuffix)
   set(VariantLibs ${_Cuda_Libs} ${_Stdlib_Libs})
   set(VariantCPPFLAGS ${_Cuda_CPPFLAGS} ${_Std_CPPFLAGS} ${_Stdlib_CPPFLAGS})
   list(APPEND LDFLAGS ${_Cuda_LDFLAGS} ${_Std_LDFLAGS} ${_Stdlib_LDFLAGS})
+  
+  if(TEST_SUITE_HIP_ROOT)
+    list(APPEND VariantCPPFLAGS -x hip)
+    message(STATUS "VariantCPPFLAGS:${VariantCPPFLAGS}")
+    message(STATUS "LDFLAGS:${VariantCPPFLAGS}")
+  endif()
 
   # Create a separate test target for simple tests that can be built/tested quickly.
   add_custom_target(cuda-tests-simple-${VariantSuffix}
@@ -164,8 +172,10 @@ function(create_cuda_test_variant Std VariantSuffix)
   create_local_cuda_tests(${VariantSuffix})
   add_dependencies(cuda-tests-simple cuda-tests-simple-${VariantSuffix})
 
+  if(THRUST_PATH)
   if(EXISTS ${THRUST_PATH} AND (NOT ${Std} STREQUAL "c++14"))
     create_thrust_tests(${VariantSuffix})
+  endif()
   endif()
 
   # Target for CUDA tests that take little time to build and run.
@@ -179,19 +189,34 @@ function(create_cuda_test_variant Std VariantSuffix)
 endfunction(create_cuda_test_variant)
 
 macro(create_cuda_tests)
-  message(STATUS "Checking CUDA prerequisites in ${TEST_SUITE_CUDA_ROOT}")
-  file(GLOB CudaVersions ${TEST_SUITE_CUDA_ROOT}/cuda-*)
-  list(SORT CudaVersions)
-  foreach(CudaDir IN LISTS CudaVersions)
-    get_version(CudaVersion ${CudaDir})
-    message(STATUS "Found CUDA ${CudaVersion}")
-    list(APPEND CUDA_PATHS ${CudaDir})
-    add_library(cudart-${CudaVersion} SHARED IMPORTED)
-    set_property(TARGET cudart-${CudaVersion} PROPERTY IMPORTED_LOCATION
-      ${CudaDir}/lib64/libcudart.so)
-  endforeach(CudaDir)
+  if(TEST_SUITE_CUDA_ROOT)
+    message(STATUS "Checking CUDA prerequisites in ${TEST_SUITE_CUDA_ROOT}")
+    file(GLOB CudaVersions ${TEST_SUITE_CUDA_ROOT}/cuda-*)
+    list(SORT CudaVersions)
+    foreach(CudaDir IN LISTS CudaVersions)
+      get_version(CudaVersion ${CudaDir})
+      message(STATUS "Found CUDA ${CudaVersion}")
+      list(APPEND CUDA_PATHS ${CudaDir})
+      add_library(cudart-${CudaVersion} SHARED IMPORTED)
+      set_property(TARGET cudart-${CudaVersion} PROPERTY IMPORTED_LOCATION
+        ${CudaDir}/lib64/libcudart.so)
+    endforeach(CudaDir)
+  else()
+    message(STATUS "Checking HIP prerequisites in ${TEST_SUITE_HIP_ROOT}")
+    file(GLOB CudaVersions ${TEST_SUITE_HIP_ROOT})
+    list(SORT CudaVersions)
+    foreach(CudaDir IN LISTS CudaVersions)
+      set(CudaVersion "8")
+      message(STATUS "Found CUDA ${CudaVersion}")
+      list(APPEND CUDA_PATHS ${CudaDir})
+      add_library(cudart-${CudaVersion} SHARED IMPORTED)
+      set_property(TARGET cudart-${CudaVersion} PROPERTY IMPORTED_LOCATION
+        ${CudaDir}/lib/libhip_hcc.so)
+    endforeach(CudaDir)
+  endif()
+    
 
-  if(NOT CUDA_PATHS)
+  if(NOT CUDA_PATHS AND NOT TEST_SUITE_HIP_ROOT)
     message(SEND_ERROR
       "There are no CUDA installations in ${TEST_SUITE_CUDA_ROOT}")
     return()
@@ -206,7 +231,11 @@ macro(create_cuda_tests)
 
   # set default GPU arch
   if(NOT CUDA_GPU_ARCH)
-    list(APPEND CUDA_GPU_ARCH sm_35)
+    if (TEST_SUITE_CUDA_ROOT)
+      list(APPEND CUDA_GPU_ARCH sm_35)
+    else()
+      list(APPEND CUDA_GPU_ARCH gfx803)
+    endif()
   endif()
   list(SORT CUDA_GPU_ARCH)
 
@@ -214,6 +243,8 @@ macro(create_cuda_tests)
     set(TEST_SUITE_LIT_FLAGS ${TEST_SUITE_LIT_FLAGS} -j ${CUDA_JOBS})
   endif()
 
+  # set up libstdc++
+  if(TEST_SUITE_CUDA_ROOT)
   file(GLOB GccVersions ${TEST_SUITE_CUDA_ROOT}/gcc-*)
   list(SORT GccVersions)
   foreach(GccRoot IN LISTS GccVersions)
@@ -242,12 +273,18 @@ macro(create_cuda_tests)
     OUTPUT_VARIABLE _path_to_libcxx
     OUTPUT_STRIP_TRAILING_WHITESPACE)
 
+  if (NOT _path_to_libcxx)
+    set(_path_to_libcxx "/usr/lib/x86_64-linux-gnu/libc++.so")
+  endif()
+  
   if(EXISTS ${_path_to_libcxx})
     add_library(libcxx SHARED IMPORTED)
     set_property(TARGET libcxx PROPERTY IMPORTED_LOCATION ${_path_to_libcxx})
     set(HAVE_LIBCXX 1)
+    message(STATUS "Add library ${_path_to_libcxx}")
   else()
     message(WARNING "Can't find libcxx location.")
+  endif()
   endif()
 
   if(EXISTS "${TEST_SUITE_CUDA_ROOT}/thrust")
@@ -289,6 +326,10 @@ macro(create_cuda_tests)
 
   foreach(_CudaPath ${CUDA_PATHS})
     get_version(_CudaVersion ${_CudaPath})
+    if(NOT _CudaVersion)
+      set(_CudaVersion 8_0)
+    endif()
+    message(STATUS "_CudaVersion:${_CudaVersion}")
     set(_Cuda_Suffix "cuda-${_CudaVersion}")
     set(_Cuda_CPPFLAGS --cuda-path=${_CudaPath} -I${_CudaPath}/include)
     # clear the list of GPUs to compile for.
@@ -340,8 +381,16 @@ macro(create_cuda_tests)
 	set(_Stdlib_Libs libcxx)
         create_cuda_test_variant(${_Std} "${_Cuda_Suffix}-${_Std_Suffix}-libc++")
       endif()
+      
     endforeach()
   endforeach()
+
+  if(TEST_SUITE_HIP_ROOT)
+    set(_Stdlib_CPPFLAGS "")
+    set(_Stdlib_LDFLAGS "")
+    set(_Stdlib_Libs "")
+    create_cuda_test_variant("c++11" "8_0-c++11-libc++")
+  endif()
 
   # convenience target to build all CUDA tests.
   add_custom_target(cuda-tests-all DEPENDS cuda-tests-simple cuda-tests-thrust
@@ -354,7 +403,7 @@ endmacro(create_cuda_tests)
 # We always want asserts() to run.
 list(APPEND CPPFLAGS "-UNDEBUG")
 
-if(TEST_SUITE_CUDA_ROOT)
+if(TEST_SUITE_CUDA_ROOT OR TEST_SUITE_HIP_ROOT)
   create_cuda_tests()
 endif()
 

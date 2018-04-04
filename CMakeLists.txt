@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.4.3)
-
+message(STATUS "cmake started...")
 include(CheckSymbolExists)
 
 project(test-suite C CXX)
