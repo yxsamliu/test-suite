@@ -1,7 +1,8 @@
+#include "hip/hip_runtime.h"
 #include <iostream>
 
 __global__ void axpy(float a, float* x, float* y) {
-  y[threadIdx.x] = a * x[threadIdx.x];
+  y[hipThreadIdx_x] = a * x[hipThreadIdx_x];
 }
 
 int main(int argc, char* argv[]) {
@@ -14,24 +15,24 @@ int main(int argc, char* argv[]) {
   // Copy input data to device.
   float* device_x;
   float* device_y;
-  cudaMalloc(&device_x, kDataLen * sizeof(float));
-  cudaMalloc(&device_y, kDataLen * sizeof(float));
-  cudaMemcpy(device_x, host_x, kDataLen * sizeof(float),
-             cudaMemcpyHostToDevice);
+  hipMalloc(&device_x, kDataLen * sizeof(float));
+  hipMalloc(&device_y, kDataLen * sizeof(float));
+  hipMemcpy(device_x, host_x, kDataLen * sizeof(float),
+             hipMemcpyHostToDevice);
 
   // Launch the kernel.
-  axpy<<<1, kDataLen>>>(a, device_x, device_y);
+  hipLaunchKernelGGL((axpy), dim3(1), dim3(kDataLen), 0, 0, a, device_x, device_y);
 
   // Copy output data to host.
-  cudaDeviceSynchronize();
-  cudaMemcpy(host_y, device_y, kDataLen * sizeof(float),
-             cudaMemcpyDeviceToHost);
+  hipDeviceSynchronize();
+  hipMemcpy(host_y, device_y, kDataLen * sizeof(float),
+             hipMemcpyDeviceToHost);
 
   // Print the results.
   for (int i = 0; i < kDataLen; ++i) {
     std::cout << "y[" << i << "] = " << host_y[i] << "\n";
   }
 
-  cudaDeviceReset();
+  hipDeviceReset();
   return 0;
 }

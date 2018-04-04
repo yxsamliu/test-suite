@@ -1,3 +1,5 @@
+#include "hip/hip_runtime.h"
+#include "hip/hip_runtime.h"
 //===----------------------------------------------------------------------===//
 //
 //                     The LLVM Compiler Infrastructure
@@ -433,9 +435,9 @@ __global__ void tests() {}
 #endif
 
 int main() {
-  tests<<<1, 1>>>();
-  cudaError_t err = cudaDeviceSynchronize();
-  if (err != cudaSuccess) {
+  hipLaunchKernelGGL((tests), dim3(1), dim3(1), 0, 0, );
+  hipError_t err = hipDeviceSynchronize();
+  if (err != hipSuccess) {
     printf("CUDA error %d\n", (int)err);
     return 1;
   }

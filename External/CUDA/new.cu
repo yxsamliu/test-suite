@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 // Check that operator new and operator delete work.
 
 #include <assert.h>
@@ -58,9 +59,9 @@ __global__ void kernel() {
 }
 
 int main() {
-  kernel<<<32, 32>>>();
-  cudaError_t err = cudaDeviceSynchronize();
-  if (err != cudaSuccess) {
+  hipLaunchKernelGGL((kernel), dim3(32), dim3(32), 0, 0, );
+  hipError_t err = hipDeviceSynchronize();
+  if (err != hipSuccess) {
     printf("CUDA error %d\n", (int)err);
     return 1;
   }

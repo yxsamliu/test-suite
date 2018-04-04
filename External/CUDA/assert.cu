@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 #include <assert.h>
 #include <stdio.h>
 
@@ -12,8 +13,8 @@ __global__ void kernel() {
 }
 
 int main() {
-  kernel<<<1,1>>>();
-  cudaError_t err = cudaDeviceSynchronize();
+  hipLaunchKernelGGL((kernel), dim3(1), dim3(1), 0, 0, );
+  hipError_t err = hipDeviceSynchronize();
   if (err != cudaErrorAssert)
     return err;
   return 0;

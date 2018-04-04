@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 // Check that we can call some constexpr functions from <algorithm> and
 // <functional> when compiling with C++14.  (We require C++14 because only in
 // that version do these functions become constexpr and therefore implicitly
@@ -46,9 +47,9 @@ __global__ void kernel() {
 }
 
 int main() {
-  kernel<<<32, 32>>>();
-  cudaError_t err = cudaDeviceSynchronize();
-  if (err != cudaSuccess) {
+  hipLaunchKernelGGL((kernel), dim3(32), dim3(32), 0, 0, );
+  hipError_t err = hipDeviceSynchronize();
+  if (err != hipSuccess) {
     printf("CUDA error %d\n", (int)err);
     return 1;
   }
