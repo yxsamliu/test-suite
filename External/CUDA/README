@@ -13,7 +13,11 @@ export TEST_SUITE_DIR=/path/to/git/test-suite/test-suite
 cd /path/to/git/test-suite/build
 
 PATH=$CLANG_DIR/bin:$PATH CXX=clang++ CC=clang \
-cmake -DTEST_SUITE_EXTERNALS_DIR=$EXTERNALS $TEST_SUITE_DIR
+cmake -DTEST_SUITE_EXTERNALS_DIR=$EXTERNALS \
+      -DHIP_INCLUDE_PATH=/path/to/hip/include \
+      -DHIP_LIB_PATH=/path/to/hip/lib \
+      -DHIP_DEVICE_LIB_PATH=/path/to/hip/lib/libdevice \
+  $TEST_SUITE_DIR
 
 make -j1 VERBOSE=1 cuda-tests-simple
 /path/to/llvm-lit -a External/CUDA
