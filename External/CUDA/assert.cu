@@ -15,7 +15,7 @@ __global__ void kernel() {
 int main() {
   hipLaunchKernelGGL((kernel), dim3(1), dim3(1), 0, 0, );
   hipError_t err = hipDeviceSynchronize();
-  if (err != cudaErrorAssert)
+  if (err != hipErrorAssert)
     return err;
   return 0;
 }
